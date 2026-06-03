@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OpsPilot — AI-Powered Internal Operations Automation</title>
+    <meta name="description" content="OpsPilot is an AI-powered internal operations platform. Automate ticket triage, leave requests, meeting summaries, document Q&A, and daily reports.">
+    <meta name="theme-color" content="#090b10">
+    <!-- Open Graph -->
+    <meta property="og:title" content="OpsPilot — Internal Operations AI">
+    <meta property="og:description" content="AI-powered internal ops automation: ticket triage, leave review, meeting summaries, document Q&A, and daily reports.">
+    <meta property="og:type" content="website">
+    <!-- Preconnect to Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail" aria-label="Primary navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">OP</div>
+          <div>
+            <strong>OpsPilot</strong>
+            <span>Internal AI Ops</span>
+          </div>
+        </div>
+        <nav id="nav"></nav>
+        <button class="ghost" data-action="seed" type="button">Seed demo data</button>
+      </aside>
+      <main class="stage">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Internal Operations Automation</p>
+            <h1 id="pageTitle">Command Center</h1>
+          </div>
+          <div class="status-strip" aria-label="System status" id="statusStrip">
+            <span id="statusDot"></span>
+            <b id="apiStatus">Connecting…</b>
+          </div>
+        </header>
+        <section class="overview" aria-label="Key metrics">
+          <div class="metric">
+            <span>Total Tickets</span>
+            <strong id="metricTickets">0</strong>
+          </div>
+          <div class="metric">
+            <span>Critical</span>
+            <strong id="metricCritical">0</strong>
+          </div>
+          <div class="metric">
+            <span>Leave Queue</span>
+            <strong id="metricLeaves">0</strong>
+          </div>
+          <div class="metric">
+            <span>Open Tasks</span>
+            <strong id="metricTasks">0</strong>
+          </div>
+        </section>
+        <section class="workspace">
+          <div class="canvas-panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Operational Pulse</span>
+                <h2 id="viewTitle">Dashboard</h2>
+              </div>
+              <div class="tiny-chart" id="tinyChart" aria-label="Ticket trend chart"></div>
+            </div>
+            <div id="view"></div>
+          </div>
+          <aside class="model-panel" aria-label="AI automation model">
+            <div class="model" aria-hidden="true">
+              <div class="model-plane plane-a"></div>
+              <div class="model-plane plane-b"></div>
+              <div class="model-plane plane-c"></div>
+              <div class="node node-a">Triage</div>
+              <div class="node node-b">Policy</div>
+              <div class="node node-c">RAG</div>
+              <div class="node node-d">Report</div>
+            </div>
+            <div class="agent-box">
+              <span class="label">Ops Agent <span id="agentProviderBadge" class="provider-badge"></span></span>
+              <div id="agentLog" class="agent-log"></div>
+              <form id="agentForm" class="agent-form">
+                <input id="agentInput" name="message" autocomplete="off" placeholder="Ask about risks, tickets, leave…" aria-label="Ask the Ops Agent">
+                <button type="submit" aria-label="Send message"></button>
+              </form>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

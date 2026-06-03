@@ -1,0 +1,41 @@
+{
+  "name": "OpsPilot Ticket Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "opspilot-ticket",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "name": "Ticket Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/tickets",
+        "method": "POST",
+        "sendBody": true,
+        "jsonBody": "={{$json}}"
+      },
+      "name": "Create Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {
+    "Ticket Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "OpsPilot Leave Review",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "opspilot-leave",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "name": "Leave Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/leave",
+        "method": "POST",
+        "sendBody": true,
+        "jsonBody": "={{$json}}"
+      },
+      "name": "Analyze Leave",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {
+    "Leave Webhook": {
+      "main": [
+        [
+          {
+            "node": "Analyze Leave",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

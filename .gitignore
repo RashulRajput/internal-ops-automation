@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+data/
+*.db
+node_modules/
+dist/
+.pytest_cache/
+coverage/
+*.log
+edge-profile/
+chrome-profile/
