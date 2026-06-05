@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/documents",
+        "url": "https://internal-ops-automation.onrender.com/api/documents",
         "method": "POST",
         "sendBody": true,
         "jsonBody": "={{$json}}"

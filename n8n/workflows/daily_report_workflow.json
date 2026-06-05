@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/reports/daily",
+        "url": "https://internal-ops-automation.onrender.com/api/reports/daily",
         "method": "GET"
       },
       "name": "Generate Report",

@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/tickets",
+        "url": "https://internal-ops-automation.onrender.com/api/tickets",
         "method": "POST",
         "sendBody": true,
         "jsonBody": "={{$json}}"

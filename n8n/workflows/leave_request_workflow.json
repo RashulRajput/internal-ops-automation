@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/leave",
+        "url": "https://internal-ops-automation.onrender.com/api/leave",
         "method": "POST",
         "sendBody": true,
         "jsonBody": "={{$json}}"

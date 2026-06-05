@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/meetings",
+        "url": "https://internal-ops-automation.onrender.com/api/meetings",
         "method": "POST",
         "sendBody": true,
         "jsonBody": "={{$json}}"
@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/tasks",
+        "url": "https://internal-ops-automation.onrender.com/api/tasks",
         "method": "GET"
       },
       "name": "Refresh Task Board",
