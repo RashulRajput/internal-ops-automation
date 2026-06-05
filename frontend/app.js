@@ -5,7 +5,8 @@ const tabs = [
   ["meetings", "Meetings", "users"],
   ["documents", "Docs Q&A", "file-search"],
   ["tasks", "Tasks", "check"],
-  ["reports", "Reports", "chart"]
+  ["reports", "Reports", "chart"],
+  ["stack", "AI Stack", "cpu"]
 ];
 
 let active = "dashboard";
@@ -29,7 +30,8 @@ const icons = {
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>',
-  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 3 1.9 5.7L20 11l-6.1 2.3L12 19l-1.9-5.7L4 11l6.1-2.3Z"/></svg>'
+  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 3 1.9 5.7L20 11l-6.1 2.3L12 19l-1.9-5.7L4 11l6.1-2.3Z"/></svg>',
+  cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M9 2v2M9 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>'
 };
 
 function icon(name) {
@@ -41,13 +43,23 @@ function esc(value) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.detail || "Request failed");
-  return body;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  try {
+    const res = await fetch(path, {
+      ...options,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || "Request failed");
+    return body;
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Request timed out. The server may be busy processing with Ollama.");
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function nav() {
@@ -63,11 +75,11 @@ async function load() {
   try {
     const health = await api("/health");
     activeProvider = health.ai_provider || "Local";
-    const isLLM = activeProvider !== "Local";
+    const isLLM = activeProvider !== "Local fallback";
     const statusEl = q("#apiStatus");
     const dotEl = q("#statusDot");
     const stripEl = q("#statusStrip");
-    statusEl.textContent = isLLM ? `AI: ${activeProvider}` : "Local AI, no keys";
+    statusEl.textContent = isLLM ? `AI: ${activeProvider}` : "Fallback AI, no keys";
     dotEl.style.background = isLLM ? "#4fd1c5" : "#7ad66d";
     dotEl.style.boxShadow = isLLM
       ? "0 0 16px rgba(79,209,197,.8)"
@@ -80,7 +92,7 @@ async function load() {
     if (badge) badge.textContent = activeProvider;
   } catch (_) {
     activeProvider = "Local";
-    q("#apiStatus").textContent = "Local AI, no keys";
+    q("#apiStatus").textContent = "Fallback AI, no keys";
   }
   data = await api("/api/summary");
   renderMetrics();
@@ -115,7 +127,8 @@ function render() {
     meetings: renderMeetings,
     documents: renderDocuments,
     tasks: renderTasks,
-    reports: renderReports
+    reports: renderReports,
+    stack: renderStack
   }[active])();
 }
 
@@ -351,6 +364,72 @@ function renderReports() {
   });
 }
 
+function renderStack() {
+  view.innerHTML = `
+    <div class="split">
+      <div class="form">
+        <h3>AI provider cascade</h3>
+        <div id="providerStatus" class="list">${empty("Loading provider status")}</div>
+        <div id="vectorStatus" class="status-strip">Checking vector store...</div>
+        <div class="toolbar">
+          <button class="primary" id="refreshStackButton" type="button">${icon("cpu")}Refresh status</button>
+          <button class="secondary" id="benchmarkButton" type="button">${icon("spark")}Benchmark</button>
+        </div>
+      </div>
+      <div class="list">
+        <span class="label">Workflow architecture</span>
+        <article class="item"><h3>n8n</h3><p class="muted">Webhook and scheduled automation layer. Importable workflows are included in n8n/workflows.</p></article>
+        <article class="item"><h3>LangGraph</h3><p class="muted">Ticket workflow runs classify, risk, route, and resolve steps with audit output.</p></article>
+        <article class="item"><h3>RAG</h3><p class="muted">Document Q&A indexes chunks locally and retrieves source-backed answers.</p></article>
+        <article class="item"><h3>Ollama + Free APIs</h3><p class="muted">Gemini/Groq/Hugging Face free keys are optional. Ollama works locally. Fallback works everywhere.</p></article>
+      </div>
+    </div>
+  `;
+  loadStackStatus();
+  q("#refreshStackButton").addEventListener("click", loadStackStatus);
+  q("#benchmarkButton").addEventListener("click", runBenchmark);
+}
+
+async function loadStackStatus() {
+  const status = await api("/api/ai/status");
+  activeProvider = status.active_provider || activeProvider;
+  const vector = status.vector_store || {};
+  q("#vectorStatus").textContent = `Vector store: ${vector.backend || "tfidf"}${vector.persistent ? " persistent" : " local"} - ${vector.note || vector.directory || "ready"}`;
+  q("#providerStatus").innerHTML = (status.providers || []).map(p => `
+    <article class="item">
+      <div class="item-top">
+        <h3>${esc(p.name)}</h3>
+        <span class="chip ${p.available ? "approved" : "pending"}">${p.available ? "available" : "not active"}</span>
+      </div>
+      <div class="chips">
+        <span class="chip">${esc(p.model)}</span>
+        <span class="chip">${esc(p.kind)}</span>
+      </div>
+    </article>
+  `).join("");
+}
+
+async function runBenchmark() {
+  const button = q("#benchmarkButton");
+  button.disabled = true;
+  try {
+    const result = await api("/api/ai/benchmark", { method: "POST", body: JSON.stringify({ prompt: "Say hello from OpsPilot in one sentence." }) });
+    q("#providerStatus").innerHTML = (result.results || []).map(p => `
+      <article class="item">
+        <div class="item-top">
+          <h3>${esc(p.provider)}</h3>
+          <span class="chip ${p.success ? "approved" : "rejected"}">${p.success ? `${p.latency_ms} ms` : "failed"}</span>
+        </div>
+        <p class="muted">${esc(p.response_preview || p.error || "No response")}</p>
+      </article>
+    `).join("");
+  } catch (err) {
+    flash(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function field(name, label, type = "text", required = false) {
   return `<label class="field"><span>${label}</span><input name="${name}" type="${type}" ${required ? "required" : ""}></label>`;
 }
@@ -367,26 +446,24 @@ function formBody(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
-function submitForm(path, ok) {
-  return async e => {
-    e.preventDefault();
-    const button = e.submitter;
-    button.disabled = true;
-    try {
-      await api(path, { method: "POST", body: JSON.stringify(formBody(e.currentTarget)) });
-      e.currentTarget.reset();
-      flash(ok);
-      await load();
-    } catch (err) {
-      flash(err.message);
-    } finally {
-      button.disabled = false;
-    }
-  };
+async function submitFormDirect(form, path, ok, e) {
+  e.preventDefault();
+  const button = e.submitter;
+  button.disabled = true;
+  try {
+    await api(path, { method: "POST", body: JSON.stringify(formBody(form)) });
+    form.reset();
+    flash(ok);
+    await load();
+  } catch (err) {
+    flash(err.message);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderAgent() {
-  q("#agentLog").innerHTML = chat.map(m => `<div class="bubble ${m.role === "user" ? "user" : ""}"><span class="bubble-role">${m.role === "user" ? "You" : (data.provider || "OpsPilot")}</span>${esc(m.text)}</div>`).join("");
+  q("#agentLog").innerHTML = chat.map(m => `<div class="bubble ${m.role === "user" ? "user" : ""}"><span class="bubble-role">${m.role === "user" ? "You" : (data.provider || activeProvider || "OpsPilot")}</span>${esc(m.text)}</div>`).join("");
   q("#agentForm button").innerHTML = icons.send;
   const log = q("#agentLog");
   if (log) log.scrollTop = log.scrollHeight;
@@ -396,6 +473,12 @@ document.addEventListener("click", async e => {
   const tabButton = e.target.closest("button[data-tab]");
   if (tabButton) {
     active = tabButton.dataset.tab;
+    render();
+    return;
+  }
+  const navClick = e.target.closest("[data-nav]");
+  if (navClick) {
+    active = navClick.dataset.nav;
     render();
     return;
   }
@@ -418,7 +501,7 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   const endpointForm = e.target.closest("form[data-endpoint]");
   if (endpointForm) {
-    await submitForm(endpointForm.dataset.endpoint, endpointForm.dataset.ok)(e);
+    await submitFormDirect(endpointForm, endpointForm.dataset.endpoint, endpointForm.dataset.ok, e);
     return;
   }
   const meetingForm = e.target.closest("form[data-meeting-form]");

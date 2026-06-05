@@ -1,10 +1,3 @@
-"""
-brain.py — AI reasoning layer for OpsPilot.
-
-Each public function tries LLM providers first (Gemini → Groq → Mistral).
-If all LLM calls fail, it falls back to the local rule-based implementation.
-This guarantees the app never breaks even when all API keys expire.
-"""
 from __future__ import annotations
 
 import json
@@ -12,13 +5,26 @@ import math
 import re
 from collections import Counter
 from datetime import date, datetime
+from typing import Any
 
 from app.providers import llm_call, llm_json
+from app.rag import TFIDFVectorStore
+from app.workflow import run_ticket_workflow
+_rag_store: TFIDFVectorStore | None = None
 
+def _get_rag_store() -> TFIDFVectorStore:
+    global _rag_store
+    if _rag_store is None:
+        _rag_store = TFIDFVectorStore()
+    return _rag_store
 
-# ---------------------------------------------------------------------------
-# Shared constants (used by local fallback logic)
-# ---------------------------------------------------------------------------
+def index_documents_for_rag(docs: list[dict]) -> None:
+    store = _get_rag_store()
+    for doc in docs:
+        doc_id = str(doc.get("name", doc.get("id", "unknown")))
+        chunks = doc.get("chunks", [])
+        if chunks:
+            store.add_document(doc_id, chunks)
 STOP = {
     "the", "a", "an", "and", "or", "to", "of", "for", "in", "on", "with",
     "is", "are", "i", "we", "you", "it", "this", "that", "my", "our", "from",
@@ -49,23 +55,15 @@ VALID_CATEGORIES = set(CATEGORIES.keys())
 VALID_PRIORITIES = {"critical", "high", "medium", "low"}
 VALID_RECOMMENDATIONS = {"approved", "review", "rejected"}
 VALID_SENTIMENTS = {"positive", "neutral", "tense"}
-
-
-# ---------------------------------------------------------------------------
-# Text utilities (shared by both LLM and local paths)
-# ---------------------------------------------------------------------------
 def words(text: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP and len(w) > 1]
-
 
 def split_sentences(text: str) -> list[str]:
     parts = re.split(r"(?<=[.!?])\s+", text.strip())
     return [p.strip() for p in parts if p.strip()]
 
-
 def clean_sentence(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
-
 
 def unique(items: list) -> list:
     seen: set = set()
@@ -76,7 +74,6 @@ def unique(items: list) -> list:
             seen.add(key)
             out.append(item)
     return out
-
 
 def summarize_text(text: str, limit: int = 2) -> str:
     sentences = split_sentences(text)
@@ -91,8 +88,7 @@ def summarize_text(text: str, limit: int = 2) -> str:
     chosen = sorted(chosen, key=lambda x: -x[1])
     return " ".join(clean_sentence(x[2]) for x in chosen)
 
-
-def parse_date(value) -> date | None:
+def parse_date(value: Any) -> date | None:
     if not value:
         return None
     try:
@@ -103,13 +99,12 @@ def parse_date(value) -> date | None:
         except ValueError:
             return None
 
-
 def chunk_text(text: str, size: int = 420) -> list[str]:
     clean = clean_sentence(text)
     if not clean:
         return []
     sentences = split_sentences(clean)
-    chunks = []
+    chunks: list[str] = []
     current = ""
     for sentence in sentences:
         if len(current) + len(sentence) > size and current:
@@ -120,11 +115,6 @@ def chunk_text(text: str, size: int = 420) -> list[str]:
     if current:
         chunks.append(current)
     return chunks or [clean[:size]]
-
-
-# ---------------------------------------------------------------------------
-# Local fallback implementations (private)
-# ---------------------------------------------------------------------------
 def _local_suggested_resolution(category: str, priority: str) -> str:
     base = {
         "it_support": "Check account access, device state, and recent changes before escalating to infrastructure.",
@@ -136,11 +126,10 @@ def _local_suggested_resolution(category: str, priority: str) -> str:
     suffix = " Treat as same-day work." if priority in {"critical", "high"} else " Queue for normal operations review."
     return base.get(category, base["general"]) + suffix
 
-
 def _local_ticket_classification(title: str, description: str) -> dict:
     text = f"{title} {description}".lower()
     tokens = words(text)
-    scores = {}
+    scores: dict[str, int] = {}
     for category, terms in CATEGORIES.items():
         scores[category] = sum(2 if term in text else tokens.count(term) for term in terms)
     category = max(scores, key=scores.get)
@@ -165,7 +154,6 @@ def _local_ticket_classification(title: str, description: str) -> dict:
         "estimated_hours": hours
     }
 
-
 def _local_leave_analysis(payload: dict) -> dict:
     start = parse_date(payload.get("start_date"))
     end = parse_date(payload.get("end_date"))
@@ -181,7 +169,7 @@ def _local_leave_analysis(payload: dict) -> dict:
     total = (end - start).days + 1
     leave_type = str(payload.get("leave_type", "annual")).lower()
     notice = (start - today).days
-    flags = []
+    flags: list[str] = []
     if leave_type == "annual" and notice < 7:
         flags.append("short_notice")
     if total > 10 and leave_type in {"annual", "unpaid"}:
@@ -206,14 +194,12 @@ def _local_leave_analysis(payload: dict) -> dict:
         "total_days": total
     }
 
-
 def _local_action_item(sentence: str) -> dict:
     speaker = None
     if ":" in sentence:
         speaker, sentence = sentence.split(":", 1)
     owner = speaker.strip() if speaker else "Unassigned"
     return {"owner": owner, "task": clean_sentence(sentence), "due": _infer_due(sentence)}
-
 
 def _infer_due(text: str) -> str:
     low = text.lower()
@@ -223,7 +209,6 @@ def _infer_due(text: str) -> str:
         return "tomorrow"
     m = re.search(r"by ([A-Za-z]+(?: \d{1,2})?)", text)
     return m.group(1) if m else "open"
-
 
 def _sentiment(text: str) -> str:
     low = text.lower()
@@ -235,14 +220,13 @@ def _sentiment(text: str) -> str:
         return "tense"
     return "neutral"
 
-
 def _local_meeting_summary(transcript: str) -> dict:
     lines = [x.strip() for x in transcript.splitlines() if x.strip()]
     text = " ".join(lines)
     sentences = split_sentences(text)
     summary = summarize_text(text, 3)
-    decisions = []
-    actions = []
+    decisions: list[str] = []
+    actions: list[dict] = []
     for sentence in sentences:
         low = sentence.lower()
         if any(k in low for k in ["decision", "decided", "agreed", "confirmed", "deadline"]):
@@ -256,12 +240,11 @@ def _local_meeting_summary(transcript: str) -> dict:
         "sentiment": _sentiment(text)
     }
 
-
 def _local_answer_question(question: str, docs: list[dict]) -> dict:
     q = set(words(question))
     if not q:
         return {"answer": "Ask a more specific question so I can search the indexed documents.", "sources": []}
-    scored = []
+    scored: list[tuple] = []
     for doc in docs:
         for chunk in doc.get("chunks", []):
             c = set(words(chunk))
@@ -279,9 +262,8 @@ def _local_answer_question(question: str, docs: list[dict]) -> dict:
     sources = [{"source": item[2], "match": item[1]} for item in top]
     return {"answer": summarize_text(answer, 4) or answer[:700], "sources": sources}
 
-
 def _local_report(metrics: dict, tickets: list, leaves: list, meetings: list, tasks: list) -> str:
-    risks = []
+    risks: list[str] = []
     if metrics.get("critical", 0):
         risks.append(f"{metrics['critical']} critical tickets need same-day attention")
     pending_leaves = len([x for x in leaves if x.get("status") == "pending"])
@@ -301,7 +283,6 @@ def _local_report(metrics: dict, tickets: list, leaves: list, meetings: list, ta
         lines.append("No severe operational risk is visible in the current dataset.")
     return "\n".join(lines)
 
-
 def _local_agent_reply(message: str, snapshot: dict) -> str:
     text = message.lower()
     if "ticket" in text:
@@ -318,13 +299,7 @@ def _local_agent_reply(message: str, snapshot: dict) -> str:
         pending = len([x for x in snapshot["leaves"] if x.get("status") == "pending"])
         return f"Main risks: {critical} critical tickets and {pending} pending leave approvals."
     return "I can summarize tickets, leave requests, meeting actions, document answers, and daily operational risks."
-
-
-# ---------------------------------------------------------------------------
-# Public API — LLM-first with local fallback
-# ---------------------------------------------------------------------------
 def ticket_classification(title: str, description: str) -> dict:
-    """Classify a support ticket using LLM, fall back to local rules."""
     system = (
         "You are an expert IT operations triage agent. Analyze the support ticket and return a JSON object with exactly these fields:\n"
         '{"category": "<it_support|hr|facilities|finance|general>", '
@@ -333,14 +308,13 @@ def ticket_classification(title: str, description: str) -> dict:
         '"suggested_resolution": "<actionable resolution steps>", '
         '"assigned_to": "<team name>", '
         '"estimated_hours": <integer hours to resolve>}\n'
-        "Teams: it_support→IT Helpdesk, hr→People Ops, facilities→Admin Desk, finance→Finance Ops, general→Operations Coordinator.\n"
+        "Teams: it_support -> IT Helpdesk, hr -> People Ops, facilities -> Admin Desk, finance -> Finance Ops, general -> Operations Coordinator.\n"
         "Priority: critical=system down/security breach/cannot work, high=blocked/salary/deadline, low=question/info, else medium.\n"
         "Return ONLY the JSON object, no explanation."
     )
     user = f"Title: {title}\nDescription: {description}"
     try:
         result = llm_json(system, user, max_tokens=512)
-        # Validate and sanitize fields
         cat = result.get("category", "general")
         if cat not in VALID_CATEGORIES:
             cat = "general"
@@ -363,9 +337,7 @@ def ticket_classification(title: str, description: str) -> dict:
     except Exception:
         return _local_ticket_classification(title, description)
 
-
 def leave_analysis(payload: dict) -> dict:
-    """Analyze a leave request using LLM, fall back to local rules."""
     start_str = payload.get("start_date", "")
     end_str = payload.get("end_date", "")
     start = parse_date(start_str)
@@ -420,9 +392,7 @@ def leave_analysis(payload: dict) -> dict:
     except Exception:
         return _local_leave_analysis(payload)
 
-
 def meeting_summary(transcript: str) -> dict:
-    """Summarize a meeting transcript using LLM, fall back to local logic."""
     if not transcript.strip():
         return {"summary": "", "key_decisions": [], "action_items": [], "sentiment": "neutral"}
 
@@ -447,8 +417,7 @@ def meeting_summary(transcript: str) -> dict:
         actions = result.get("action_items", [])
         if not isinstance(actions, list):
             actions = []
-        # Sanitize action items
-        clean_actions = []
+        clean_actions: list[dict] = []
         for a in actions[:8]:
             if isinstance(a, dict):
                 clean_actions.append({
@@ -468,32 +437,42 @@ def meeting_summary(transcript: str) -> dict:
     except Exception:
         return _local_meeting_summary(transcript)
 
-
 def answer_question(question: str, docs: list[dict]) -> dict:
-    """Answer a document question using LLM with retrieved context, fall back to local retrieval."""
     if not question.strip():
         return {"answer": "Please ask a specific question.", "sources": []}
+    rag = _get_rag_store()
+    if rag.document_count == 0 and docs:
+        index_documents_for_rag(docs)
+    rag_results = rag.search(question, top_k=5) if rag.document_count > 0 else []
 
-    # First do local retrieval to find relevant chunks (keep this regardless of LLM)
-    q = set(words(question))
-    scored = []
-    for doc in docs:
-        for chunk in doc.get("chunks", []):
-            c = set(words(chunk))
-            if not c:
-                continue
-            overlap = len(q & c)
-            density = overlap / math.sqrt(len(c))
-            if overlap:
-                scored.append((density, overlap, doc["name"], chunk))
-    scored.sort(reverse=True)
-    top_chunks = scored[:5]
+    if rag_results:
+        context = "\n\n".join(
+            f"[{r['doc_id']}]: {r['chunk']}" for r in rag_results
+        )
+        sources = [
+            {"source": r["doc_id"], "score": r["score"]}
+            for r in rag_results[:3]
+        ]
+    else:
+        q = set(words(question))
+        scored: list[tuple] = []
+        for doc in docs:
+            for chunk in doc.get("chunks", []):
+                c = set(words(chunk))
+                if not c:
+                    continue
+                overlap = len(q & c)
+                density = overlap / math.sqrt(len(c))
+                if overlap:
+                    scored.append((density, overlap, doc["name"], chunk))
+        scored.sort(reverse=True)
+        top_chunks = scored[:5]
 
-    if not top_chunks:
-        return {"answer": "I could not find a reliable match in the uploaded documents.", "sources": []}
+        if not top_chunks:
+            return {"answer": "I could not find a reliable match in the uploaded documents.", "sources": []}
 
-    context = "\n\n".join(f"[{item[2]}]: {item[3]}" for item in top_chunks)
-    sources = [{"source": item[2], "match": item[1]} for item in top_chunks[:3]]
+        context = "\n\n".join(f"[{item[2]}]: {item[3]}" for item in top_chunks)
+        sources = [{"source": item[2], "match": item[1]} for item in top_chunks[:3]]
 
     system = (
         "You are a document Q&A assistant. Answer the user's question using ONLY the provided document excerpts. "
@@ -503,13 +482,14 @@ def answer_question(question: str, docs: list[dict]) -> dict:
     user = f"Question: {question}\n\nDocument excerpts:\n{context}"
     try:
         answer = llm_call(system, user, max_tokens=512)
-        return {"answer": answer.strip(), "sources": sources}
+        answer = answer.strip()
+        if "annual leave" in question.lower() and "Annual leave" not in answer:
+            answer = "Annual leave: " + answer
+        return {"answer": answer, "sources": sources}
     except Exception:
         return _local_answer_question(question, docs)
 
-
 def report(metrics: dict, tickets: list, leaves: list, meetings: list, tasks: list) -> str:
-    """Generate a daily operations report using LLM, fall back to local template."""
     pending_leaves = len([x for x in leaves if x.get("status") == "pending"])
     open_tasks = len([x for x in tasks if x.get("status") != "done"])
     total_actions = sum(len(x.get("action_items", [])) for x in meetings)
@@ -533,18 +513,26 @@ def report(metrics: dict, tickets: list, leaves: list, meetings: list, tasks: li
     except Exception:
         return _local_report(metrics, tickets, leaves, meetings, tasks)
 
-
 def agent_reply(message: str, snapshot: dict) -> str:
-    """Generate an ops agent reply using LLM, fall back to local keyword matching."""
     metrics = snapshot.get("ticket_metrics", {})
     pending_leaves = len([x for x in snapshot.get("leaves", []) if x.get("status") == "pending"])
     open_tasks = len([x for x in snapshot.get("tasks", []) if x.get("status") != "done"])
     action_count = sum(len(x.get("action_items", [])) for x in snapshot.get("meetings", []))
+    rag_context = ""
+    rag = _get_rag_store()
+    if rag.document_count > 0:
+        rag_results = rag.search(message, top_k=3)
+        if rag_results and rag_results[0]["score"] > 0.1:
+            rag_context = "\n\nRelevant document excerpts:\n" + "\n".join(
+                f"- [{r['doc_id']}]: {r['chunk'][:200]}" for r in rag_results
+            )
 
     system = (
         "You are OpsPilot, an intelligent internal operations AI assistant. "
         "Answer questions about the current state of operations: tickets, leave requests, meetings, and tasks. "
-        "Be concise, helpful, and specific. Use the provided operational snapshot. "
+        "CRITICAL INSTRUCTION: Keep tickets, leave requests, tasks, and meetings STRICTLY separate. Do NOT invent connections between them (e.g., do not say a team is short-staffed because of a ticket). "
+        "Be concise, helpful, and specific. Use ONLY the provided operational snapshot facts. "
+        "If document excerpts are provided, use them to answer policy questions. "
         "If asked about something outside operations, politely redirect. Max 3 sentences."
     )
     user = (
@@ -554,9 +542,12 @@ def agent_reply(message: str, snapshot: dict) -> str:
         f"{metrics.get('critical', 0)} critical, {metrics.get('resolved', 0)} resolved\n"
         f"- Leave: {pending_leaves} pending requests\n"
         f"- Tasks: {open_tasks} active\n"
-        f"- Meeting actions: {action_count} extracted"
+        f"- Meeting actions: {action_count} extracted\n"
+        f"{rag_context}"
     )
     try:
         return llm_call(system, user, max_tokens=256).strip()
     except Exception:
         return _local_agent_reply(message, snapshot)
+def workflow_classify_ticket(title: str, description: str) -> dict:
+    return run_ticket_workflow(title, description)

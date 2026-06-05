@@ -5,13 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-
 def _load_dotenv(path: str = ".env") -> None:
-    """
-    Minimal .env loader — reads KEY=VALUE pairs, ignores comments and blanks.
-    Does NOT override variables already set in the environment.
-    No external dependencies required.
-    """
     env_path = Path(path)
     if not env_path.exists():
         return
@@ -25,25 +19,22 @@ def _load_dotenv(path: str = ".env") -> None:
         if key and key not in os.environ:
             os.environ[key] = value
 
-
-# Load .env BEFORE importing anything that reads env vars
 _load_dotenv(str(Path(__file__).resolve().parents[1] / ".env"))
 
-# Now import providers so the chain is built with correct keys
-from app.providers import active_provider_name, reset_chain  # noqa: E402
-reset_chain()  # rebuild after loading .env
+from app.providers import active_provider_name, benchmark_providers, get_provider_status, reset_chain  # noqa: E402
+from app.rag import vector_backend_status  # noqa: E402
+
+reset_chain()
 
 from app.brain import (  # noqa: E402
     agent_reply, answer_question, chunk_text,
-    leave_analysis, meeting_summary, report, ticket_classification
+    leave_analysis, meeting_summary, report, ticket_classification, workflow_classify_ticket
 )
 from app.store import Store  # noqa: E402
-
 
 BASE = Path(__file__).resolve().parents[1]
 FRONTEND = BASE / "frontend"
 
-# DB path: env var > default in system temp (avoids OneDrive file lock on Windows)
 _db_env = os.environ.get("INTERNALOPS_DB", "").strip()
 if _db_env:
     DB_PATH = _db_env
@@ -51,7 +42,6 @@ else:
     DB_PATH = str(Path(os.environ.get("TEMP", "C:\\tmp")) / "opspilot" / "internalops.db")
 
 store = Store(DB_PATH)
-
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "InternalOps/1.0"
@@ -81,17 +71,45 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "healthy",
                     "service": "OpsPilot AI",
                     "ai_provider": active_provider_name(),
-                    "mode": "llm" if active_provider_name() != "Local" else "local"
+                    "mode": "ai" if active_provider_name() != "Local fallback" else "fallback"
                 })
+            if path == "/api/ai/status":
+                return self.json({
+                    "active_provider": active_provider_name(),
+                    "providers": get_provider_status(),
+                    "vector_store": vector_backend_status(),
+                    "mode": os.environ.get("AI_PROVIDER_MODE", "free-first")
+                })
+            if path == "/api/ai/benchmark" and method == "POST":
+                return self.json({"results": benchmark_providers(body.get("prompt", "Say hello in one sentence."))})
             if path == "/api/summary":
-                return self.json(store.snapshot())
+                snap = store.snapshot()
+                snap["provider"] = active_provider_name()
+                snap["workflow_stats"] = store.workflow_stats()
+                return self.json(snap)
             if path == "/api/tickets" and method == "GET":
                 return self.json({"tickets": store.list_tickets()})
             if path == "/api/tickets/stats/summary" and method == "GET":
                 return self.json(store.ticket_metrics())
             if path == "/api/tickets" and method == "POST":
                 required(body, ["title", "description", "submitter_name", "submitter_email"])
-                item = store.create_ticket(body, ticket_classification(body["title"], body["description"]))
+                workflow = workflow_classify_ticket(body["title"], body["description"])
+                final = workflow.get("final_result", {})
+                analysis = {
+                    "category": final.get("category", "general"),
+                    "priority": final.get("priority", "medium"),
+                    "ai_summary": f"Risk: {final.get('risk_level', 'low')}. Routed to {final.get('team', 'Operations Coordinator')}.",
+                    "suggested_resolution": "; ".join(final.get("resolution_steps", [])) or "Review and assign to operations.",
+                    "assigned_to": final.get("team", "Operations Coordinator"),
+                    "estimated_hours": final.get("estimated_hours", 8),
+                }
+                item = store.create_ticket(body, analysis)
+                store.create_workflow_run(
+                    body["title"],
+                    workflow.get("steps", []),
+                    final.get("total_latency_ms", 0),
+                    final.get("providers_used", []),
+                )
                 return self.json(item)
             if path.startswith("/api/tickets/"):
                 ticket_id = int(path.rsplit("/", 1)[-1])
@@ -124,6 +142,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(store.create_task(body))
             if path.startswith("/api/tasks/") and method == "PATCH":
                 return self.found(store.update_task(int(path.rsplit("/", 1)[-1]), body))
+            if path == "/api/workflows/ticket" and method == "POST":
+                required(body, ["title", "description"])
+                workflow = workflow_classify_ticket(body["title"], body["description"])
+                final = workflow.get("final_result", {})
+                store.create_workflow_run(
+                    body["title"],
+                    workflow.get("steps", []),
+                    final.get("total_latency_ms", 0),
+                    final.get("providers_used", []),
+                )
+                return self.json(workflow)
+            if path == "/api/workflows/runs" and method == "GET":
+                return self.json({"runs": store.list_workflow_runs(), "stats": store.workflow_stats()})
+            if path == "/api/audit" and method == "GET":
+                return self.json({"audit": store.list_audit_log()})
             if path == "/api/reports/daily" and method == "GET":
                 snap = store.snapshot()
                 text = report(snap["ticket_metrics"], snap["tickets"], snap["leaves"], snap["meetings"], snap["tasks"])
@@ -198,20 +231,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
 
-
 def required(payload, keys):
     missing = [k for k in keys if not str(payload.get(k, "")).strip()]
     if missing:
         raise ValueError("Missing required field: " + ", ".join(missing))
 
-
 def store_date():
     from datetime import date
     return date.today().isoformat()
 
-
 def seed_demo():
-    if store.ticket_metrics()["total"]:
+    existing_tickets = store.list_tickets()
+    if any(t.get("title") == "VPN access fails for remote team" for t in existing_tickets):
         return
     tickets = [
         {
@@ -269,18 +300,15 @@ Rahul: Great, follow-up next Friday.
         "content": "Annual leave should be requested seven days in advance. Sick leave can be submitted the same day. Leave longer than ten days needs manager approval and backup ownership."
     }, chunk_text("Annual leave should be requested seven days in advance. Sick leave can be submitted the same day. Leave longer than ten days needs manager approval and backup ownership."))
 
-
 def main():
     seed_demo()
     port = int(os.environ.get("PORT", "8000"))
-    # Bind to 0.0.0.0 for cloud deployments; local-only when explicitly set
     host = os.environ.get("HOST", "0.0.0.0")
     server = ThreadingHTTPServer((host, port), Handler)
     provider = active_provider_name()
     print(f"OpsPilot AI running at http://{host}:{port}")
     print(f"AI Provider: {provider}")
     server.serve_forever()
-
 
 if __name__ == "__main__":
     main()

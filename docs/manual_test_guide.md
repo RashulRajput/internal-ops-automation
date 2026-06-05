@@ -1,53 +1,80 @@
 # Manual Test Guide
 
-This project does not need OpenAI, Gemini, Claude, or any paid API key.
+No paid API key is required.
 
-It uses a local API server on your laptop:
-
-```text
-http://127.0.0.1:8000
-```
-
-The browser talks to that local API through routes like:
+The app works in three levels:
 
 ```text
-/api/tickets
-/api/leave
-/api/meetings
-/api/documents/query
-/api/agent/chat
+Best online quality: Gemini/Groq/Hugging Face free API keys
+Best local privacy: Ollama running on your laptop
+Guaranteed fallback: built-in local logic
 ```
 
-## Start The Project
-
-Open PowerShell:
+## Start Locally
 
 ```powershell
 cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
 python -m app.main
 ```
 
-Keep that PowerShell window open.
-
-Open this in Chrome:
+Open:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-If buttons still feel stuck, press:
+After updates, press:
 
 ```text
 Ctrl + F5
 ```
 
-That forces Chrome to load the newest JavaScript.
+## Optional Full Stack With n8n And Ollama
 
-## Test 1: Ticket Automation
+Docker mode starts OpsPilot, n8n, and Ollama:
+
+```powershell
+cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
+docker compose up --build
+```
+
+Open:
+
+```text
+OpsPilot: http://127.0.0.1:8000
+n8n: http://127.0.0.1:5678
+```
+
+n8n login from `.env.example`:
+
+```text
+User: admin
+Password: opspilot-demo
+```
+
+Pull a local Ollama model:
+
+```powershell
+docker exec -it internal-ops-automation-ollama-1 ollama pull llama3.2:3b
+```
+
+## Test 1: AI Stack
+
+Open `AI Stack`.
+
+Expected:
+
+```text
+It shows Gemini Free, Groq Free, Hugging Face Free, Ollama Local, or Local fallback status.
+```
+
+If no keys and no Ollama model exist, `Local fallback` is fine.
+
+## Test 2: Ticket Workflow
 
 Open `Tickets`.
 
-Fill:
+Use:
 
 ```text
 Title: VPN not working for remote team
@@ -56,23 +83,19 @@ Email: rajesh@webvory.com
 Description: The team cannot connect to VPN since morning and staging access is blocked.
 ```
 
-Click:
+Expected:
 
 ```text
-Classify ticket
+Ticket appears with it_support, high or critical priority, owner, summary, and estimated hours.
 ```
 
-Expected result:
+Behind the scenes, the workflow runs classify, risk, route, and resolve steps.
 
-```text
-New ticket appears with it_support, high or critical priority, assigned owner, summary, and estimated hours.
-```
-
-## Test 2: Leave Automation
+## Test 3: Leave Review
 
 Open `Leave`.
 
-Fill:
+Use:
 
 ```text
 Employee: Sneha Patel
@@ -84,23 +107,17 @@ End date: 2026-06-20
 Reason: Family travel planned in advance.
 ```
 
-Click:
+Expected:
 
 ```text
-Analyze request
+Leave request appears with approved or review recommendation and reasoning.
 ```
 
-Expected result:
-
-```text
-Leave request appears with approved or review recommendation and a reason.
-```
-
-## Test 3: Meeting Automation
+## Test 4: Meeting Summary
 
 Open `Meetings`.
 
-Fill:
+Use:
 
 ```text
 Title: Q2 Ops Planning
@@ -112,23 +129,17 @@ Arjun: Engineering needs API contracts by Monday.
 Priyanka: I will confirm the policy wording with HR today.
 ```
 
-Click:
+Expected:
 
 ```text
-Extract summary
+Meeting appears with summary, decisions, action count, and sentiment. Tasks are created from action items.
 ```
 
-Expected result:
-
-```text
-Meeting appears with summary, decisions, action count, and sentiment.
-```
-
-## Test 4: Document Q&A
+## Test 5: RAG Document Q&A
 
 Open `Docs Q&A`.
 
-Index this document:
+Index:
 
 ```text
 Document name: Leave Policy
@@ -137,57 +148,45 @@ Paste document text:
 Annual leave should be requested seven days in advance. Sick leave can be submitted the same day. Leave longer than ten days needs manager approval and backup ownership.
 ```
 
-Click:
-
-```text
-Index document
-```
-
 Ask:
 
 ```text
 How much notice is needed for annual leave?
 ```
 
-Click:
+Expected:
 
 ```text
-Ask documents
+It answers that annual leave should be requested seven days in advance and shows a source.
 ```
 
-Expected result:
+## Test 6: Ops Agent
 
-```text
-It answers that annual leave should be requested seven days in advance.
-```
-
-## Test 5: Ops Agent
-
-In the right-side Ops Agent box, type:
+Ask:
 
 ```text
 What are the current risks?
 ```
 
-Expected result:
+Expected:
 
 ```text
 It summarizes critical tickets and pending leave approvals.
 ```
 
-Try:
+Ask:
 
 ```text
 meetings today
 ```
 
-Expected result:
+Expected:
 
 ```text
-It tells you how many extracted meeting action items exist.
+It tells you how many meeting action items exist.
 ```
 
-## Test 6: Reports
+## Test 7: Reports
 
 Open `Reports`.
 
@@ -197,22 +196,8 @@ Click:
 Generate daily report
 ```
 
-Expected result:
+Expected:
 
 ```text
-A daily operations report appears with current metrics and risks.
+A daily operations report appears with metrics and risks.
 ```
-
-## Important
-
-No API keys are required for this version.
-
-The word API here means the local backend server. It is not calling paid AI services.
-
-The AI behavior is local rule-based logic in:
-
-```text
-app/brain.py
-```
-
-Paid/free AI providers can be added later, but this submitted POC is designed to run without them.

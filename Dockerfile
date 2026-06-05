@@ -2,16 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy source
 COPY . .
 
-# Create persistent data directory
 RUN mkdir -p /data
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Port — overridden by Railway/Render at runtime
 ENV PORT=8000
 ENV HOST=0.0.0.0
 ENV INTERNALOPS_DB=/data/internalops.db
+ENV AI_PROVIDER_MODE=free-first
 
 EXPOSE 8000
 

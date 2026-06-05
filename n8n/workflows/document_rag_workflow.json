@@ -1,0 +1,41 @@
+{
+  "name": "OpsPilot Document RAG Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "opspilot-document",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "name": "Document Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/documents",
+        "method": "POST",
+        "sendBody": true,
+        "jsonBody": "={{$json}}"
+      },
+      "name": "Index Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {
+    "Document Webhook": {
+      "main": [
+        [
+          {
+            "node": "Index Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

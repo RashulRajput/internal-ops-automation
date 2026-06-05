@@ -1,3 +1,2 @@
-# OpsPilot uses Python standard library only — no pip packages required.
-# All LLM API calls use urllib.request (built in).
-# Add packages here if you extend the project (e.g., google-generativeai, groq, mistralai).
+langgraph>=0.2.0
+langchain-core>=0.3.0

@@ -9,8 +9,37 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - INTERNALOPS_DB=/data/internalops.db
+      - AI_PROVIDER_MODE=free-first
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
     volumes:
       - opspilot-data:/data
+    depends_on:
+      - ollama
+
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-opspilot-demo}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Kolkata
+    volumes:
+      - n8n-data:/home/node/.n8n
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
 
 volumes:
   opspilot-data:
+  n8n-data:
+  ollama-data:

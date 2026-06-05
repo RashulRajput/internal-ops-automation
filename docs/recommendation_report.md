@@ -2,55 +2,108 @@
 
 ## Recommended Architecture
 
-Use a modular internal operations platform:
+OpsPilot should use a free-first internal automation architecture:
 
-- Web dashboard for operations users.
-- REST API for ticket, leave, meeting, document, task, and report workflows.
-- SQLite for the POC, PostgreSQL for production.
-- Local deterministic AI for demo reliability.
-- Optional provider adapters for Gemini, Ollama, Groq, OpenAI, or Claude.
-- Chroma for document retrieval when the document set grows.
-- n8n for scheduled reports and notifications.
+```mermaid
+flowchart LR
+    U["Employee or manager"] --> UI["OpsPilot dashboard"]
+    UI --> API["Python REST API"]
+    API --> WF["LangGraph workflow"]
+    API --> RAG["RAG retrieval"]
+    API --> DB[("SQLite now, PostgreSQL later")]
+    WF --> P["Provider cascade"]
+    P --> G["Gemini free key"]
+    P --> Q["Groq free key"]
+    P --> H["Hugging Face free key"]
+    P --> O["Ollama local model"]
+    P --> F["Local deterministic fallback"]
+    RAG --> T["TF-IDF built in"]
+    RAG --> C["Optional ChromaDB"]
+    API --> N["n8n webhooks and schedules"]
+    N --> E["Email, Slack, Jira, Shopify, Sheets"]
+```
 
-## Why These Tools
+The POC already implements the core backend, frontend, workflow engine, RAG layer, local fallback, optional free providers, Docker deployment files, and n8n workflow exports.
 
-The prototype intentionally avoids paid APIs. That makes it easy to review, record, and demonstrate. The code keeps the AI functions isolated in `app/brain.py`, so an LLM adapter can be added later without rewriting the API or UI.
+## Tool Selection
 
-Gemini and Ollama are the first upgrade choices because they keep cost low. Groq is a good second choice for fast hosted inference. OpenAI and Claude are best reserved for workflows where accuracy is worth the additional cost, such as policy interpretation, executive summaries, and complex multi-step agent tasks.
+| Requirement | Selected Tool | Reason |
+|---|---|---|
+| No paid AI dependency | Local fallback and Ollama | The system runs even with no cloud model key |
+| Free cloud AI | Gemini, Groq, Hugging Face | Optional quality and speed boost using free tiers |
+| Multi-step AI automation | LangGraph | Clear audit trail for classify, risk, route, resolve |
+| External workflow automation | n8n | Free self-hosted automation with webhooks and schedules |
+| RAG/vector database | TF-IDF plus optional ChromaDB | Works immediately and upgrades to local vectors |
+| Storage | SQLite for POC | Zero configuration and easy local deployment |
+| Future storage | PostgreSQL | Better concurrency and managed deployment support |
+| UI | Custom responsive dashboard | No generic template, no build step, manager-friendly demo |
+
+## Why This Architecture Was Selected
+
+The assignment asks for practical AI understanding, architecture thinking, tool selection reasoning, and production deployment thinking. A single chatbot would be too basic. OpsPilot instead shows a real operational system:
+
+1. Tickets enter through the API or UI.
+2. LangGraph runs a workflow with separate steps.
+3. The provider cascade tries free cloud APIs, Ollama, and local fallback.
+4. The output is stored with an audit trail.
+5. n8n can trigger the same API from webhooks or schedules.
+6. RAG retrieves policy context for document Q&A.
+7. Reports and the agent summarize the live operational state.
 
 ## Estimated Infrastructure Cost
 
-POC cost: zero, apart from the developer laptop.
+| Stage | Hosting | AI | Database | Vector DB | n8n | Estimated Monthly Cost |
+|---|---|---|---|---|---|---|
+| Current local POC | Laptop | Local fallback/Ollama | SQLite | TF-IDF | Local Docker | $0 |
+| Free online demo | Render free tier | Local fallback or free keys | SQLite disk | TF-IDF | Not always-on unless self-hosted | $0 |
+| Small team | Render/Railway starter | Mostly Gemini/Groq free or low paid use | PostgreSQL | ChromaDB/Weaviate | Self-hosted VPS | $10-$40 |
+| Production | Container service | Paid fallback budget | Managed PostgreSQL | Weaviate/Pinecone | n8n queue workers | $80-$300 |
 
-Small production estimate:
+For a manager demo today, no paid service is needed.
 
-- App server: low-cost VPS or internal VM.
-- Database: managed PostgreSQL or existing company database.
-- LLM: start with Gemini free tier, Ollama local, or Groq low-cost model.
-- Vector DB: self-hosted Chroma at first.
-- Workflow automation: self-hosted n8n.
+## Risks and Limitations
 
-Expected early monthly cost can stay near zero to low double digits if local inference or free tiers are used. Paid frontier models should be budget-capped.
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Free API rate limits | Slower or failed cloud responses | Provider cascade plus local fallback |
+| Local model quality varies | Smaller Ollama models may be less accurate | Use cloud free providers for better quality when available |
+| No authentication in POC | Public deployment would be unsafe | Add login before sharing beyond demo users |
+| SQLite concurrency | Not ideal for heavy multi-user production | Move to PostgreSQL in production |
+| AI mistakes in HR decisions | Bad recommendations could affect employees | Keep human approval for leave and high-risk actions |
+| n8n self-hosting | Another service to operate | Use Docker Compose now, separate worker later |
 
-## Risks
+## Production Scaling Plan
 
-- Rule-based AI is reliable but less flexible than a real LLM.
-- Free API tiers can change limits and data-retention terms.
-- HR, payroll, and policy data need strong access control.
-- AI recommendations must not auto-reject employee requests without human review.
-- Document retrieval quality depends on chunking and source freshness.
+### Phase 1: Submission POC
 
-## Scaling Plan
+Use the current repository. Run locally or deploy to Render. Keep no paid AI requirement. Use included n8n workflow JSON files for architecture proof.
 
-1. Replace SQLite with PostgreSQL.
-2. Add authentication and role-based access.
-3. Move reasoning functions behind provider interfaces.
-4. Add Chroma for document embeddings and metadata filters.
-5. Add n8n webhooks for Slack and email.
-6. Add audit logs for every AI recommendation.
-7. Add background jobs for daily reports and SLA reminders.
-8. Add evaluation datasets for tickets, leave, summaries, and Q&A.
+### Phase 2: Team Pilot
+
+Add authentication, role-based access, PostgreSQL, and a hosted n8n instance. Connect email or Slack using n8n. Keep Ollama for private cases and free model APIs for cheaper general tasks.
+
+### Phase 3: Production
+
+Move to a managed database, deploy API containers with health checks, add monitoring, store full workflow audit logs, and enable ChromaDB or Weaviate for persistent vector search.
+
+### Phase 4: Enterprise
+
+Add SSO, approval workflows, retention policies, encryption at rest, usage analytics, quality evaluation sets, and per-department model routing.
 
 ## Business Impact
 
-OpsPilot reduces repeated triage work, shortens response time, gives HR and admin teams a single queue, and turns meetings and documents into searchable operational knowledge. The strongest demo value is that multiple internal workflows share one automation layer instead of living as separate scripts.
+OpsPilot can reduce manual operations work in five areas:
+
+| Workflow | Manual Work Reduced |
+|---|---|
+| Ticket triage | Classification, priority, team routing, resolution suggestions |
+| Leave review | Policy checks, flags, manager review recommendation |
+| Meeting follow-up | Summaries, decisions, action items |
+| Policy Q&A | Faster answers from internal documents |
+| Daily report | Automatic operational summary from live data |
+
+The strongest business value is consistency: the same rules and workflow are applied every time, and risky decisions are visible for human review.
+
+## Final Recommendation
+
+Submit OpsPilot as the recommended architecture. It meets the free/no-paid-API constraint, uses n8n, LangGraph, RAG, optional Ollama, optional free APIs, and includes real deployment planning. The current prototype is advanced enough for review because it is not just a UI mockup; it has a working backend, persistent data, workflow audit trail, report generation, document retrieval, and importable n8n workflows.

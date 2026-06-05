@@ -4,7 +4,7 @@ services:
     runtime: python
     region: oregon
     plan: free
-    buildCommand: echo "No build step required"
+    buildCommand: pip install -r requirements.txt
     startCommand: python -m app.main
     healthCheckPath: /health
     envVars:
@@ -12,15 +12,15 @@ services:
         value: 10000
       - key: HOST
         value: 0.0.0.0
-      - key: AI_MODE
-        value: llm
+      - key: AI_PROVIDER_MODE
+        value: free-first
       - key: INTERNALOPS_DB
         value: /data/internalops.db
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: MISTRAL_API_KEY
+      - key: HUGGINGFACE_API_KEY
         sync: false
     disk:
       name: opspilot-data

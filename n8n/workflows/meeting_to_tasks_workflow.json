@@ -1,0 +1,62 @@
+{
+  "name": "OpsPilot Meeting To Tasks",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "opspilot-meeting",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "name": "Meeting Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/meetings",
+        "method": "POST",
+        "sendBody": true,
+        "jsonBody": "={{$json}}"
+      },
+      "name": "Analyze Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/tasks",
+        "method": "GET"
+      },
+      "name": "Refresh Task Board",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Meeting Webhook": {
+      "main": [
+        [
+          {
+            "node": "Analyze Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Meeting": {
+      "main": [
+        [
+          {
+            "node": "Refresh Task Board",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

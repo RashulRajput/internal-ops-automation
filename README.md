@@ -1,10 +1,16 @@
 # OpsPilot Internal Operations Automation
 
-OpsPilot is a working POC for an AI-powered internal operations system. It handles ticket triage, leave request review, meeting summarization, document Q&A, task extraction, daily reporting, and an operations chat agent.
+OpsPilot is a complete AI operations automation POC for internal teams. It demonstrates ticket triage, leave review, meeting summarization, task extraction, document Q&A with RAG, daily reporting, workflow audit trails, n8n automation exports, and a polished dashboard UI.
 
-The demo runs without paid APIs. The AI layer is local and deterministic so the project works immediately on any laptop. The architecture report explains how the same interfaces can later connect to Gemini, OpenAI, Claude, Groq, Ollama, Chroma, Slack, or n8n.
+It runs without paid AI APIs. By default it uses local deterministic fallback logic, so the app works immediately. Optional free keys can enable Gemini, Groq, or Hugging Face. Ollama can run fully local models. n8n and Ollama are included in Docker Compose for the full architecture.
 
-## Run
+## Project Location
+
+```text
+C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation
+```
+
+## Quick Run
 
 ```powershell
 cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
@@ -17,53 +23,80 @@ Open:
 http://127.0.0.1:8000
 ```
 
-The server seeds demo data on startup. Press `Seed demo` in the UI if you reset the database.
+No API key is required for the demo.
 
-Manual testing steps are in [manual_test_guide.md](docs/manual_test_guide.md).
+## Full Stack Run
 
-## What Works
+```powershell
+cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
+docker compose up --build
+```
 
-- Local REST backend with SQLite
-- Ticket classification with category, priority, owner, summary, and suggested resolution
-- Leave policy analysis with recommendation, flags, and conditions
-- Meeting transcript summary with decisions and action-item extraction
-- Document indexing and keyword retrieval Q&A
-- Task board with meeting-derived tasks
-- Daily operations report
-- Agent chat for status and risk questions
-- Dark dimensional dashboard UI
-- n8n workflow JSON examples
-- Documentation and tests
-
-## Project Map
+Services:
 
 ```text
-internal-ops-automation/
-  app/
-    brain.py
-    main.py
-    store.py
-  frontend/
-    index.html
-    styles.css
-    app.js
-  docs/
-    architecture.md
-    ai_tools_research.md
-    recommendation_report.md
-    api_documentation.md
-    demo_walkthrough.md
-  n8n/workflows/
-  scripts/
-  tests/
+OpsPilot: http://127.0.0.1:8000
+n8n:      http://127.0.0.1:5678
+Ollama:   http://127.0.0.1:11434
+```
+
+Default n8n credentials are in `.env.example`.
+
+To use a local Ollama model:
+
+```powershell
+ollama pull llama3.2:3b
+```
+
+## Optional Free AI Keys
+
+Copy `.env.example` to `.env` and fill any free keys you have:
+
+```text
+GEMINI_API_KEY=
+GROQ_API_KEY=
+HUGGINGFACE_API_KEY=
+AI_PROVIDER_MODE=free-first
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=llama3.2:3b
+```
+
+Modes:
+
+```text
+free-first   Free cloud keys first, Ollama second, local fallback last
+ollama-first Ollama first, free cloud keys second, local fallback last
+ollama-only  Only Ollama, then local fallback
+```
+
+## Deliverables
+
+```text
+docs/ai_tools_research.md       Research and evaluation
+docs/recommendation_report.md   Architecture and production recommendation
+docs/architecture.md            System diagrams and deployment thinking
+docs/manual_test_guide.md       Exact manual testing steps
+docs/demo_walkthrough.md        Demo video/walkthrough script
+docs/api_documentation.md       REST API reference
+n8n/workflows/                  Importable workflow templates
 ```
 
 ## Tests
 
 ```powershell
 python -m unittest discover tests
+node --check frontend\app.js
 ```
 
-## Notes
+## Deployment
 
-No API key is required. By default the local database is stored under the system temp folder to avoid OneDrive file locks on Windows. `INTERNALOPS_DB` can point the server at another SQLite file. `PORT` changes the local server port.
+Render and Railway configs are included:
+
+```text
+render.yaml
+railway.json
+Dockerfile
+docker-compose.yml
+```
+
+For a free online demo, deploy the repository to Render using `render.yaml`. It will run with local fallback even without keys. Add free API keys later as environment variables.
