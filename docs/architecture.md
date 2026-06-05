@@ -19,7 +19,7 @@ flowchart LR
     Providers --> Local["Local deterministic fallback"]
     RAG --> Chroma["ChromaDB optional local vector DB"]
     RAG --> TFIDF["TF-IDF fallback"]
-    N8N["n8n self-hosted workflows"] --> API
+    N8N["n8n Cloud workflows"] --> API
 ```
 
 ## Runtime Components
@@ -31,8 +31,8 @@ flowchart LR
 | Workflow engine | LangGraph when installed, sequential fallback otherwise | Multi-step ticket processing: classify, assess risk, route, resolve |
 | LLM layer | Gemini Free, Groq Free, Hugging Face Free, Ollama | Free-first AI reasoning |
 | RAG layer | Local TF-IDF today, ChromaDB optional | Search policy and operations documents |
-| Automation | n8n Docker service | Webhooks, scheduled reports, no-code workflow proof |
-| Storage | SQLite | Tickets, leave requests, meetings, documents, tasks, workflow runs |
+| Automation | n8n Cloud | Webhooks, scheduled reports, no-code workflow proof |
+| Storage | SQLite (Persistent Disk) | Tickets, leave requests, meetings, documents, tasks, workflow runs |
 
 ## Provider Cascade
 
@@ -92,12 +92,14 @@ flowchart TD
     E --> F["Generate answer with sources"]
 ```
 
-## n8n Flow
+## n8n Cloud Flow
+
+![n8n Cloud Workflows](images/n8n_workflows.png)
 
 ```mermaid
 flowchart LR
-    W["Webhook or schedule"] --> N["n8n workflow"]
-    N --> API["OpsPilot endpoint"]
+    W["Webhook or schedule"] --> N["n8n Cloud workflow"]
+    N --> API["OpsPilot Cloud API (Render)"]
     API --> DB["SQLite"]
     API --> AI["AI workflow"]
     AI --> R["Response or report"]
