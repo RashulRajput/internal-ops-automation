@@ -1,105 +1,65 @@
-# OpsPilot Internal Operations Automation
+# OpsPilot: Internal Operations Automation
 
-OpsPilot is a complete AI operations automation POC for internal teams. It demonstrates ticket triage, leave review, meeting summarization, task extraction, document Q&A with RAG, daily reporting, workflow audit trails, n8n automation exports, and a polished dashboard UI.
+OpsPilot is a comprehensive operations automation platform designed to streamline internal team workflows. It features an AI-powered dashboard that handles ticket triage, leave request reviews, meeting summarization, intelligent task extraction, document Q&A (RAG), and daily reporting.
 
-It runs without paid AI APIs. By default it uses local deterministic fallback logic, so the app works immediately. Optional free keys can enable Gemini, Groq, or Hugging Face. Ollama can run fully local models. n8n and Ollama are included in Docker Compose for the full architecture.
+The system is built to run entirely locally using fallback logic or Ollama, but it truly shines when integrated with cloud AI providers (like Google Gemini) and workflow automation engines (like n8n).
 
-## Project Location
+## Features
 
-```text
-C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation
-```
+- **AI Operations Dashboard**: A sleek, unified interface to manage tasks, tickets, and leave requests.
+- **Smart Ticket Triage**: Automatically categorizes, prioritizes, and routes incoming IT/Ops tickets.
+- **Meeting Summarization**: Extracts actionable tasks and key decisions from raw meeting transcripts.
+- **Document Q&A**: A Retrieval-Augmented Generation (RAG) system for querying internal policies.
+- **Workflow Automation**: Deeply integrates with n8n to automate repetitive background tasks.
+- **Multi-Model Support**: Works with Google Gemini, Groq, Hugging Face, or locally via Ollama.
 
-## Quick Run
+## Quick Start (Local Development)
 
-```powershell
-cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
+To run the application locally for development:
+
+```bash
+pip install -r requirements.txt
 python -m app.main
 ```
 
-Open:
+Once running, navigate to `http://127.0.0.1:8000` in your browser.
 
-```text
-http://127.0.0.1:8000
-```
+## Full Stack Docker Environment
 
-No API key is required for the demo.
+To run the complete stack (OpsPilot, n8n, and Ollama) locally using Docker:
 
-## Full Stack Run
-
-```powershell
-cd "C:\Users\DELL\OneDrive\Documents\New project\internal-ops-automation"
+```bash
 docker compose up --build
 ```
 
-Services:
+- **OpsPilot Dashboard**: `http://127.0.0.1:8000`
+- **n8n Automation**: `http://127.0.0.1:5678` (Credentials in `.env.example`)
+- **Ollama Engine**: `http://127.0.0.1:11434`
+
+## Configuration
+
+Copy `.env.example` to `.env` and configure your API keys. The application uses a cascading provider system.
 
 ```text
-OpsPilot: http://127.0.0.1:8000
-n8n:      http://127.0.0.1:5678
-Ollama:   http://127.0.0.1:11434
-```
-
-Default n8n credentials are in `.env.example`.
-
-To use a local Ollama model:
-
-```powershell
-ollama pull llama3.2:3b
-```
-
-## Optional Free AI Keys
-
-Copy `.env.example` to `.env` and fill any free keys you have:
-
-```text
-GEMINI_API_KEY=
-GROQ_API_KEY=
-HUGGINGFACE_API_KEY=
+GEMINI_API_KEY=your_key_here
 AI_PROVIDER_MODE=free-first
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2:3b
 ```
 
-Modes:
+## Cloud Deployment (Render + n8n Cloud)
 
-```text
-free-first   Free cloud keys first, Ollama second, local fallback last
-ollama-first Ollama first, free cloud keys second, local fallback last
-ollama-only  Only Ollama, then local fallback
-```
+OpsPilot is configured for easy 1-click deployment to **Render.com** and seamless integration with **n8n Cloud**.
 
-## Deliverables
+1. **Deploy the Backend:**
+   Use the included `render.yaml` as a Blueprint on Render.com to deploy the application for free. Make sure to add your `GEMINI_API_KEY` to the Render environment variables during setup.
 
-```text
-docs/ai_tools_research.md       Research and evaluation
-docs/recommendation_report.md   Architecture and production recommendation
-docs/architecture.md            System diagrams and deployment thinking
-docs/manual_test_guide.md       Exact manual testing steps
-docs/demo_walkthrough.md        Demo video/walkthrough script
-docs/api_documentation.md       REST API reference
-n8n/workflows/                  Importable workflow templates
-```
+2. **Connect Automations:**
+   The `n8n/workflows/` directory contains 5 ready-to-use automation templates. Import these JSON files into your n8n Cloud account, update the HTTP Request URLs to point to your new Render deployment, and set them to "Active" to enable background automations.
 
-## Tests
+## Testing
 
-```powershell
+Run the test suite to ensure everything is functioning correctly:
+
+```bash
 python -m unittest discover tests
-node --check frontend\app.js
+node --check frontend/app.js
 ```
-
-## Deployment
-
-The application is configured for easy 1-click deployment to **Render.com** and integration with **n8n Cloud**.
-
-```text
-render.yaml
-railway.json
-Dockerfile
-docker-compose.yml
-```
-
-### Cloud Deployment (Render + n8n)
-1. **Deploy to Render:** Use `render.yaml` as a Blueprint on Render.com to deploy the application for free. 
-2. **Set API Key:** In the Render dashboard, add your `GEMINI_API_KEY` to enable the OpsPilot AI Agent.
-3. **Connect n8n:** All 5 n8n workflows in `n8n/workflows/` are pre-configured to communicate with the cloud URL. Simply import them into your n8n Cloud account and set them to "Active" to enable background automations.
