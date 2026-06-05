@@ -178,7 +178,7 @@ function ticketItem(t) {
       <p class="muted">${esc(t.ai_summary || t.description)}</p>
       <div class="chips">
         <span class="chip">${esc(t.category)}</span>
-        <span class="chip ${esc(t.status)}">${esc(t.status)}</span>
+        <span class="chip status-toggle ${esc(t.status)}" data-ticket-id="${t.id}" data-current-status="${esc(t.status)}" style="cursor: pointer; user-select: none;" title="Click to toggle status">${esc(t.status)}</span>
         <span class="chip">${esc(t.assigned_to)}</span>
         <span class="chip">${esc(t.estimated_hours)}h</span>
       </div>
@@ -225,7 +225,7 @@ function leaveItem(l) {
       <div class="chips">
         <span class="chip">${esc(l.leave_type)}</span>
         <span class="chip">${esc(l.total_days)} days</span>
-        <span class="chip ${esc(l.status)}">${esc(l.status)}</span>
+        <span class="chip status-toggle ${esc(l.status)}" data-leave-id="${l.id}" data-current-status="${esc(l.status)}" style="cursor: pointer; user-select: none;" title="Click to toggle status">${esc(l.status)}</span>
       </div>
     </article>
   `;
@@ -484,13 +484,24 @@ document.addEventListener("click", async e => {
   }
   const statusToggle = e.target.closest(".status-toggle");
   if (statusToggle) {
-    const id = statusToggle.dataset.taskId;
-    if (!id) return;
-    const currentStatus = statusToggle.dataset.currentStatus;
-    const newStatus = currentStatus === "done" ? "open" : "done";
     statusToggle.style.opacity = "0.5";
     try {
-      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+      if (statusToggle.dataset.taskId) {
+        const id = statusToggle.dataset.taskId;
+        const currentStatus = statusToggle.dataset.currentStatus;
+        const newStatus = currentStatus === "done" ? "open" : "done";
+        await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+      } else if (statusToggle.dataset.ticketId) {
+        const id = statusToggle.dataset.ticketId;
+        const currentStatus = statusToggle.dataset.currentStatus;
+        const newStatus = currentStatus === "resolved" ? "open" : "resolved";
+        await api(`/api/tickets/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+      } else if (statusToggle.dataset.leaveId) {
+        const id = statusToggle.dataset.leaveId;
+        const currentStatus = statusToggle.dataset.currentStatus;
+        const newStatus = currentStatus === "pending" ? "approved" : currentStatus === "approved" ? "rejected" : "pending";
+        await api(`/api/leave/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+      }
       await load();
     } catch (err) {
       flash(err.message);

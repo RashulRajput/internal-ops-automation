@@ -123,6 +123,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/leave" and method == "POST":
                 required(body, ["employee_name", "employee_email", "start_date", "end_date", "reason"])
                 return self.json(store.create_leave(body, leave_analysis(body)))
+            if path.startswith("/api/leave/") and method == "PATCH":
+                leave_id = int(path.rsplit("/", 1)[-1])
+                return self.found(store.update_leave(leave_id, body))
             if path == "/api/meetings" and method == "GET":
                 return self.json({"meetings": store.list_meetings()})
             if path == "/api/meetings" and method == "POST":

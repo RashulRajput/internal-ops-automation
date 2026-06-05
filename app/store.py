@@ -189,6 +189,19 @@ class Store:
     def get_leave(self, leave_id: int) -> dict | None:
         row = self.one("SELECT * FROM leave_requests WHERE id = ?", [leave_id])
         return decode(row, ["risk_flags", "conditions"]) if row else None
+
+    def update_leave(self, leave_id: int, patch: dict) -> dict | None:
+        allowed = {"status"}
+        keys = [k for k in patch if k in allowed]
+        if not keys:
+            return self.get_leave(leave_id)
+        with self.connect() as db:
+            db.execute(
+                f"UPDATE leave_requests SET {','.join(f'{k} = ?' for k in keys)} WHERE id = ?",
+                [patch[k] for k in keys] + [leave_id]
+            )
+            db.commit()
+        return self.get_leave(leave_id)
     def create_meeting(self, payload: dict, analysis: dict) -> dict:
         data = {
             "title": payload.get("title", ""),
