@@ -431,11 +431,11 @@ async function runBenchmark() {
 }
 
 function field(name, label, type = "text", required = false) {
-  return `<label class="field"><span>${label}</span><input name="${name}" type="${type}" ${required ? "required" : ""}></label>`;
+  return `<label class="field"><span>${label}</span><input name="${name}" type="${type}" ${required ? "required" : ""} data-gramm="false" spellcheck="false" autocomplete="off"></label>`;
 }
 
 function area(name, label, rows = 4, required = false) {
-  return `<label class="field"><span>${label}</span><textarea name="${name}" rows="${rows}" ${required ? "required" : ""}></textarea></label>`;
+  return `<label class="field"><span>${label}</span><textarea name="${name}" rows="${rows}" ${required ? "required" : ""} data-gramm="false" spellcheck="false" autocomplete="off"></textarea></label>`;
 }
 
 function empty(text) {
