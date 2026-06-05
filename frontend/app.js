@@ -337,7 +337,7 @@ function taskItem(t) {
     <article class="item">
       <div class="item-top">
         <h3>${esc(t.title)}</h3>
-        <span class="chip ${esc(t.status)}">${esc(t.status)}</span>
+        <span class="chip status-toggle ${esc(t.status)}" data-task-id="${t.id}" data-current-status="${esc(t.status)}" style="cursor: pointer; user-select: none;" title="Click to toggle status">${esc(t.status)}</span>
       </div>
       <div class="chips">
         <span class="chip">${esc(t.owner || "Unassigned")}</span>
@@ -480,6 +480,22 @@ document.addEventListener("click", async e => {
   if (navClick) {
     active = navClick.dataset.nav;
     render();
+    return;
+  }
+  const statusToggle = e.target.closest(".status-toggle");
+  if (statusToggle) {
+    const id = statusToggle.dataset.taskId;
+    if (!id) return;
+    const currentStatus = statusToggle.dataset.currentStatus;
+    const newStatus = currentStatus === "done" ? "open" : "done";
+    statusToggle.style.opacity = "0.5";
+    try {
+      await api(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+      await load();
+    } catch (err) {
+      flash(err.message);
+      statusToggle.style.opacity = "1";
+    }
     return;
   }
   const action = e.target.closest("button[data-action]");
