@@ -90,7 +90,7 @@ node --check frontend\app.js
 
 ## Deployment
 
-Render and Railway configs are included:
+The application is configured for easy 1-click deployment to **Render.com** and integration with **n8n Cloud**.
 
 ```text
 render.yaml
@@ -99,4 +99,7 @@ Dockerfile
 docker-compose.yml
 ```
 
-For a free online demo, deploy the repository to Render using `render.yaml`. It will run with local fallback even without keys. Add free API keys later as environment variables.
+### Cloud Deployment (Render + n8n)
+1. **Deploy to Render:** Use `render.yaml` as a Blueprint on Render.com to deploy the application for free. 
+2. **Set API Key:** In the Render dashboard, add your `GEMINI_API_KEY` to enable the OpsPilot AI Agent.
+3. **Connect n8n:** All 5 n8n workflows in `n8n/workflows/` are pre-configured to communicate with the cloud URL. Simply import them into your n8n Cloud account and set them to "Active" to enable background automations.
